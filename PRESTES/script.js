@@ -1,12 +1,10 @@
 // ======================================================
 // PROJETO PRESTES - ECO-VILA SIM
 // Concurso Agrinho 2026
-// Tema: Agro forte, futuro sustentável: equilíbrio entre produção e meio ambiente
 // JavaScript puro - sem bibliotecas ou frameworks
 // ======================================================
 
-document.addEventListener("DOMContentLoaded", () => {
-  // Estado principal do jogo/simulação
+document.addEventListener("DOMContentLoaded", function () {
   const jogo = {
     ativo: false,
     dia: 1,
@@ -24,114 +22,63 @@ document.addEventListener("DOMContentLoaded", () => {
     historico: []
   };
 
-  // Busca elementos por ID, classe ou texto do botão
-  function pegarElemento(seletores) {
-    for (const seletor of seletores) {
-      const elemento = document.querySelector(seletor);
-      if (elemento) return elemento;
-    }
-    return null;
-  }
+  const btnIniciar = document.getElementById("btnIniciarJogo");
+  const btnReiniciar = document.getElementById("btnReiniciarJogo");
+  const btnIrrigar = document.getElementById("btnIrrigar");
+  const btnExpandir = document.getElementById("btnExpandir");
+  const btnAldeao = document.getElementById("btnControlarAldeao");
+  const btnSairAldeao = document.getElementById("btnSairAldeao");
+  const btnAvancar = document.getElementById("btnAvancarDia");
 
-  function pegarBotaoPorTexto(texto) {
-    const botoes = Array.from(document.querySelectorAll("button"));
-    return botoes.find((botao) =>
-      botao.textContent.trim().toLowerCase().includes(texto.toLowerCase())
-    );
-  }
+  const campoTempo = document.getElementById("tempo");
+  const campoClima = document.getElementById("clima");
+  const campoSaude = document.getElementById("saudePlantas");
+  const campoUmidade = document.getElementById("umidadeSolo");
+  const campoPlantado = document.getElementById("totalPlantado");
 
-  // Botões principais
-  const btnIniciar =
-    pegarElemento(["#btnIniciar", "#btnIniciarJogo", ".btn-iniciar"]) ||
-    pegarBotaoPorTexto("Iniciar");
+  const telaJogo = document.getElementById("telaJogo");
+  const telaFim = document.getElementById("telaFim");
+  const mensagemJogo = document.getElementById("mensagemJogo");
+  const relatorioFinal = document.getElementById("relatorioFinal");
+  const listaHistorico = document.getElementById("listaHistorico");
+  const anoAtual = document.getElementById("anoAtual");
 
-  const btnReiniciar =
-    pegarElemento(["#btnReiniciar", "#btnReiniciarJogo", ".btn-reiniciar"]) ||
-    pegarBotaoPorTexto("Jogar Novamente");
-
-  const btnIrrigar =
-    pegarElemento(["#btnIrrigar", "#irrigar", ".btn-irrigar"]) ||
-    pegarBotaoPorTexto("Irrigar");
-
-  const btnExpandir =
-    pegarElemento(["#btnExpandir", "#expandir", ".btn-expandir"]) ||
-    pegarBotaoPorTexto("Expandir");
-
-  const btnAldeao =
-    pegarElemento(["#btnAldeao", "#btnControlarAldeao", ".btn-aldeao"]) ||
-    pegarBotaoPorTexto("Controlar Aldeão");
-
-  const btnSairAldeao =
-    pegarElemento(["#btnSairAldeao", "#sairAldeao", ".btn-sair-aldeao"]) ||
-    pegarBotaoPorTexto("Sair da Visão");
-
-  const btnAvancar =
-    pegarElemento(["#btnAvancar", "#btnAvancarDia", ".btn-avancar"]) ||
-    pegarBotaoPorTexto("Avançar Dia");
-
-  // Campos do painel
-  const campoTempo =
-    pegarElemento(["#tempo", "#diaAtual", ".tempo"]);
-
-  const campoClima =
-    pegarElemento(["#clima", "#climaAtual", ".clima"]);
-
-  const campoSaude =
-    pegarElemento(["#saudePlantas", "#plantas", ".saude-plantas"]);
-
-  const campoUmidade =
-    pegarElemento(["#umidadeSolo", "#solo", ".umidade-solo"]);
-
-  const campoPlantado =
-    pegarElemento(["#totalPlantado", "#plantado", ".total-plantado"]);
-
-  // Áreas opcionais
-  const telaInicial =
-    pegarElemento(["#telaInicial", ".tela-inicial", "#inicio"]);
-
-  const telaJogo =
-    pegarElemento(["#telaJogo", ".tela-jogo", "#jogo"]);
-
-  const telaFim =
-    pegarElemento(["#telaFim", "#fimDeJogo", ".fim-de-jogo"]);
-
-  const mensagem =
-    pegarElemento(["#mensagem", "#mensagemJogo", ".mensagem"]);
-
-  const relatorio =
-    pegarElemento(["#relatorio", "#relatorioFinal", ".relatorio"]);
-
-  const historicoLista =
-    pegarElemento(["#historico", "#listaHistorico", ".historico"]);
-
-  // Cria uma área de mensagem caso o HTML não tenha uma
-  const caixaMensagem = mensagem || criarCaixaMensagem();
-
-  function criarCaixaMensagem() {
-    const div = document.createElement("div");
-    div.id = "mensagemJogo";
-    div.setAttribute("aria-live", "polite");
-    div.style.margin = "16px 0";
-    div.style.fontWeight = "700";
-
-    const main = document.querySelector("main") || document.body;
-    main.appendChild(div);
-
-    return div;
-  }
-
-  function mostrarMensagem(texto) {
-    caixaMensagem.textContent = texto;
+  if (anoAtual) {
+    anoAtual.textContent = new Date().getFullYear();
   }
 
   function limitar(valor, minimo, maximo) {
     return Math.max(minimo, Math.min(maximo, valor));
   }
 
-  function sortearClima() {
-    const climas = ["Ensolarado", "Chuvoso", "Seco", "Nublado", "Ventania"];
-    const indice = Math.floor(Math.random() * climas.length);
-    return climas[indice];
+  function mostrarMensagem(texto) {
+    if (mensagemJogo) {
+      mensagemJogo.textContent = texto;
+    }
+  }
+
+  function registrarHistorico(texto) {
+    jogo.historico.push(`Dia ${jogo.dia}: ${texto}`);
+    atualizarHistorico();
+  }
+
+  function atualizarHistorico() {
+    if (!listaHistorico) return;
+
+    listaHistorico.innerHTML = "";
+
+    if (jogo.historico.length === 0) {
+      const item = document.createElement("li");
+      item.textContent = "Aguardando início da simulação.";
+      listaHistorico.appendChild(item);
+      return;
+    }
+
+    jogo.historico.slice(-8).forEach(function (acao) {
+      const item = document.createElement("li");
+      item.textContent = acao;
+      listaHistorico.appendChild(item);
+    });
   }
 
   function atualizarPainel() {
@@ -144,21 +91,10 @@ document.addEventListener("DOMContentLoaded", () => {
     atualizarHistorico();
   }
 
-  function atualizarHistorico() {
-    if (!historicoLista) return;
-
-    historicoLista.innerHTML = "";
-
-    jogo.historico.slice(-6).forEach((item) => {
-      const li = document.createElement("li");
-      li.textContent = item;
-      historicoLista.appendChild(li);
-    });
-  }
-
-  function registrarAcao(texto) {
-    jogo.historico.push(`Dia ${jogo.dia}: ${texto}`);
-    atualizarHistorico();
+  function sortearClima() {
+    const climas = ["Ensolarado", "Chuvoso", "Seco", "Nublado", "Ventania"];
+    const indice = Math.floor(Math.random() * climas.length);
+    return climas[indice];
   }
 
   function iniciarJogo() {
@@ -176,23 +112,40 @@ document.addEventListener("DOMContentLoaded", () => {
     jogo.visaoAldeao = false;
     jogo.historico = [];
 
-    if (telaInicial) telaInicial.style.display = "none";
-    if (telaFim) telaFim.style.display = "none";
-    if (telaJogo) telaJogo.style.display = "block";
+    document.body.classList.remove("modo-aldeao");
 
-    mostrarMensagem("Simulação iniciada! Equilibre produção, água, solo e biodiversidade.");
-    registrarAcao("A Eco-Vila iniciou o planejamento sustentável.");
+    if (telaFim) {
+      telaFim.style.display = "none";
+    }
+
+    if (telaJogo) {
+      telaJogo.style.display = "block";
+    }
+
+    mostrarMensagem("Simulação iniciada! Equilibre produção, água, solo, biodiversidade e tecnologia.");
+    registrarHistorico("A Eco-Vila iniciou seu planejamento sustentável.");
     atualizarPainel();
+
+    const simulador = document.getElementById("simulador");
+    if (simulador) {
+      simulador.scrollIntoView({ behavior: "smooth" });
+    }
+  }
+
+  function verificarJogoAtivo() {
+    if (!jogo.ativo) {
+      mostrarMensagem("Clique em Iniciar Simulação antes de tomar decisões.");
+      return false;
+    }
+
+    return true;
   }
 
   function irrigarSolo() {
-    if (!jogo.ativo) {
-      mostrarMensagem("Clique em Iniciar Simulação antes de jogar.");
-      return;
-    }
+    if (!verificarJogoAtivo()) return;
 
     if (jogo.agua < 10) {
-      mostrarMensagem("Água insuficiente. Avance o dia e aguarde melhora no clima.");
+      mostrarMensagem("Água insuficiente para irrigar. Aguarde uma chuva ou avance o dia.");
       return;
     }
 
@@ -200,19 +153,16 @@ document.addEventListener("DOMContentLoaded", () => {
     jogo.umidadeSolo = limitar(jogo.umidadeSolo + 18, 0, 100);
     jogo.saudePlantas = limitar(jogo.saudePlantas + 8, 0, 100);
 
-    registrarAcao("Irrigou o solo de forma controlada.");
-    mostrarMensagem("Solo irrigado. As plantas ficaram mais saudáveis, mas a água foi reduzida.");
+    registrarHistorico("Irrigou o solo de forma controlada.");
+    mostrarMensagem("Solo irrigado. As plantas melhoraram, mas a reserva de água diminuiu.");
     atualizarPainel();
   }
 
   function expandirLavoura() {
-    if (!jogo.ativo) {
-      mostrarMensagem("Clique em Iniciar Simulação antes de jogar.");
-      return;
-    }
+    if (!verificarJogoAtivo()) return;
 
     if (jogo.umidadeSolo < 25) {
-      mostrarMensagem("O solo está seco demais para expandir a lavoura.");
+      mostrarMensagem("O solo está seco demais para expandir a lavoura com segurança.");
       return;
     }
 
@@ -221,16 +171,13 @@ document.addEventListener("DOMContentLoaded", () => {
     jogo.biodiversidade = limitar(jogo.biodiversidade - 4, 0, 100);
     jogo.producao = limitar(jogo.producao + 10, 0, 100);
 
-    registrarAcao("Expandiu a lavoura com planejamento.");
-    mostrarMensagem("Lavoura expandida. A produção aumentou, mas o solo precisa de cuidado.");
+    registrarHistorico("Expandiu a lavoura com planejamento.");
+    mostrarMensagem("A lavoura foi expandida. A produção aumentou, mas o solo precisa de cuidado.");
     atualizarPainel();
   }
 
   function controlarAldeao() {
-    if (!jogo.ativo) {
-      mostrarMensagem("Clique em Iniciar Simulação antes de jogar.");
-      return;
-    }
+    if (!verificarJogoAtivo()) return;
 
     jogo.visaoAldeao = true;
     jogo.tecnologia = limitar(jogo.tecnologia + 7, 0, 100);
@@ -238,59 +185,74 @@ document.addEventListener("DOMContentLoaded", () => {
 
     document.body.classList.add("modo-aldeao");
 
-    registrarAcao("Ativou a visão do aldeão para observar a fazenda de perto.");
-    mostrarMensagem("Visão do aldeão ativada. A tecnologia e o monitoramento ambiental melhoraram.");
+    registrarHistorico("Ativou a visão do aldeão para observar a vila de perto.");
+    mostrarMensagem("Visão do aldeão ativada. O monitoramento ambiental e tecnológico melhorou.");
     atualizarPainel();
   }
 
   function sairVisaoAldeao() {
+    if (!verificarJogoAtivo()) return;
+
     jogo.visaoAldeao = false;
     document.body.classList.remove("modo-aldeao");
 
-    registrarAcao("Saiu da visão do aldeão.");
+    registrarHistorico("Saiu da visão do aldeão.");
     mostrarMensagem("Você voltou para a visão geral da Eco-Vila.");
     atualizarPainel();
   }
 
-  function avancarDia() {
-    if (!jogo.ativo) {
-      mostrarMensagem("Clique em Iniciar Simulação antes de jogar.");
-      return;
-    }
-
+  function aplicarEfeitoDoClima() {
     jogo.clima = sortearClima();
 
     if (jogo.clima === "Chuvoso") {
       jogo.umidadeSolo = limitar(jogo.umidadeSolo + 20, 0, 100);
       jogo.agua = limitar(jogo.agua + 15, 0, 100);
       jogo.biodiversidade = limitar(jogo.biodiversidade + 4, 0, 100);
-      registrarAcao("Choveu e os recursos naturais se recuperaram.");
+      registrarHistorico("Choveu e os recursos naturais se recuperaram.");
     }
 
     if (jogo.clima === "Seco") {
       jogo.umidadeSolo = limitar(jogo.umidadeSolo - 18, 0, 100);
       jogo.saudePlantas = limitar(jogo.saudePlantas - 10, 0, 100);
-      registrarAcao("O clima seco exigiu atenção ao uso da água.");
+      registrarHistorico("O clima seco reduziu a umidade e prejudicou as plantas.");
     }
 
     if (jogo.clima === "Ensolarado") {
       jogo.saudePlantas = limitar(jogo.saudePlantas + 4, 0, 100);
       jogo.umidadeSolo = limitar(jogo.umidadeSolo - 8, 0, 100);
-      registrarAcao("O sol ajudou as plantas, mas reduziu a umidade do solo.");
+      registrarHistorico("O sol ajudou as plantas, mas reduziu a umidade do solo.");
     }
 
     if (jogo.clima === "Nublado") {
       jogo.umidadeSolo = limitar(jogo.umidadeSolo - 3, 0, 100);
       jogo.saudePlantas = limitar(jogo.saudePlantas + 2, 0, 100);
-      registrarAcao("O dia nublado manteve equilíbrio na lavoura.");
+      registrarHistorico("O dia nublado manteve equilíbrio na lavoura.");
     }
 
     if (jogo.clima === "Ventania") {
       jogo.saudePlantas = limitar(jogo.saudePlantas - 7, 0, 100);
       jogo.biodiversidade = limitar(jogo.biodiversidade - 3, 0, 100);
-      registrarAcao("A ventania prejudicou parte da plantação.");
+      registrarHistorico("A ventania prejudicou parte da plantação.");
     }
+  }
 
+  function calcularProducao() {
+    const bonusSolo = jogo.umidadeSolo * 0.2;
+    const bonusSaude = jogo.saudePlantas * 0.3;
+    const bonusTecnologia = jogo.tecnologia * 0.15;
+    const bonusBiodiversidade = jogo.biodiversidade * 0.15;
+
+    jogo.producao = limitar(
+      Math.round((jogo.totalPlantado * 1.2) + bonusSolo + bonusSaude + bonusTecnologia + bonusBiodiversidade),
+      0,
+      100
+    );
+  }
+
+  function avancarDia() {
+    if (!verificarJogoAtivo()) return;
+
+    aplicarEfeitoDoClima();
     calcularProducao();
 
     if (jogo.dia >= jogo.totalDias) {
@@ -298,22 +260,10 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
-    jogo.dia++;
-    mostrarMensagem(`Novo dia iniciado. Clima: ${jogo.clima}. Continue equilibrando produção e meio ambiente.`);
+    jogo.dia += 1;
+
+    mostrarMensagem(`Novo dia iniciado. Clima atual: ${jogo.clima}. Continue buscando equilíbrio.`);
     atualizarPainel();
-  }
-
-  function calcularProducao() {
-    const bonusSolo = jogo.umidadeSolo * 0.2;
-    const bonusSaude = jogo.saudePlantas * 0.3;
-    const bonusTecnologia = jogo.tecnologia * 0.15;
-    const impactoAmbiental = jogo.biodiversidade * 0.15;
-
-    jogo.producao = limitar(
-      Math.round((jogo.totalPlantado * 1.2) + bonusSolo + bonusSaude + bonusTecnologia + impactoAmbiental),
-      0,
-      100
-    );
   }
 
   function calcularPontuacaoFinal() {
@@ -327,10 +277,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function finalizarJogo() {
     jogo.ativo = false;
-    const pontos = calcularPontuacaoFinal();
 
-    if (telaJogo) telaJogo.style.display = "none";
-    if (telaFim) telaFim.style.display = "block";
+    const pontos = calcularPontuacaoFinal();
 
     let classificacao = "";
 
@@ -339,9 +287,9 @@ document.addEventListener("DOMContentLoaded", () => {
     } else if (pontos >= 70) {
       classificacao = "Bom resultado! A vila foi sustentável, mas ainda pode melhorar.";
     } else if (pontos >= 50) {
-      classificacao = "Resultado regular. A produção aconteceu, mas o meio ambiente sofreu.";
+      classificacao = "Resultado regular. A produção aconteceu, mas o meio ambiente sofreu impactos.";
     } else {
-      classificacao = "Atenção! A vila precisa melhorar o equilíbrio entre produção e natureza.";
+      classificacao = "Atenção! A vila precisa melhorar o equilíbrio entre produção e preservação.";
     }
 
     const textoRelatorio =
@@ -352,26 +300,49 @@ document.addEventListener("DOMContentLoaded", () => {
       `Biodiversidade: ${jogo.biodiversidade}%. ` +
       classificacao;
 
-    if (relatorio) {
-      relatorio.textContent = textoRelatorio;
+    if (relatorioFinal) {
+      relatorioFinal.textContent = textoRelatorio;
+    }
+
+    if (telaFim) {
+      telaFim.style.display = "block";
+      telaFim.scrollIntoView({ behavior: "smooth" });
     }
 
     mostrarMensagem(textoRelatorio);
-    registrarAcao("A simulação foi finalizada.");
+    registrarHistorico("A simulação foi finalizada.");
     atualizarPainel();
   }
 
-  // Eventos dos botões
-  if (btnIniciar) btnIniciar.addEventListener("click", iniciarJogo);
-  if (btnReiniciar) btnReiniciar.addEventListener("click", iniciarJogo);
-  if (btnIrrigar) btnIrrigar.addEventListener("click", irrigarSolo);
-  if (btnExpandir) btnExpandir.addEventListener("click", expandirLavoura);
-  if (btnAldeao) btnAldeao.addEventListener("click", controlarAldeao);
-  if (btnSairAldeao) btnSairAldeao.addEventListener("click", sairVisaoAldeao);
-  if (btnAvancar) btnAvancar.addEventListener("click", avancarDia);
+  if (btnIniciar) {
+    btnIniciar.addEventListener("click", iniciarJogo);
+  }
 
-  // Atalhos de teclado para melhorar acessibilidade
-  document.addEventListener("keydown", (evento) => {
+  if (btnReiniciar) {
+    btnReiniciar.addEventListener("click", iniciarJogo);
+  }
+
+  if (btnIrrigar) {
+    btnIrrigar.addEventListener("click", irrigarSolo);
+  }
+
+  if (btnExpandir) {
+    btnExpandir.addEventListener("click", expandirLavoura);
+  }
+
+  if (btnAldeao) {
+    btnAldeao.addEventListener("click", controlarAldeao);
+  }
+
+  if (btnSairAldeao) {
+    btnSairAldeao.addEventListener("click", sairVisaoAldeao);
+  }
+
+  if (btnAvancar) {
+    btnAvancar.addEventListener("click", avancarDia);
+  }
+
+  document.addEventListener("keydown", function (evento) {
     if (!jogo.ativo) return;
 
     if (evento.key === "1") irrigarSolo();
@@ -380,12 +351,6 @@ document.addEventListener("DOMContentLoaded", () => {
     if (evento.key === "4") avancarDia();
     if (evento.key === "Escape") sairVisaoAldeao();
   });
-
-  // Ano automático no rodapé, caso exista
-  const anoAtual = document.querySelector("#anoAtual");
-  if (anoAtual) {
-    anoAtual.textContent = new Date().getFullYear();
-  }
 
   atualizarPainel();
 });
