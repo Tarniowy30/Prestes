@@ -1,0 +1,128 @@
+* { 
+    margin: 0; 
+    padding: 0; 
+    box-sizing: border-box; 
+}
+
+body, html { 
+    overflow: hidden; 
+    font-family: sans-serif; 
+    background: #0a0f1d; 
+}
+
+#canvas-container { 
+    width: 100vw; 
+    height: 100vh; 
+    display: block; 
+}
+
+/* Telas de Menu (Start e End Game) */
+.screen {
+    position: absolute; 
+    top: 0; 
+    left: 0; 
+    width: 100%; 
+    height: 100%;
+    background: linear-gradient(135deg, #0e1e12 0%, #050a14 100%);
+    display: flex; 
+    flex-direction: column; 
+    align-items: center; 
+    justify-content: center;
+    color: #fff; 
+    z-index: 10; 
+    text-align: center;
+}
+
+.screen h1 { 
+    font-size: 2.5rem; 
+    margin-bottom: 15px; 
+    color: #81c784; 
+}
+
+.screen p { 
+    max-width: 500px; 
+    margin-bottom: 25px; 
+    color: #b0bec5; 
+    line-height: 1.5; 
+}
+
+/* HUD - Painel de Informações */
+#hud {
+    position: absolute; 
+    top: 20px; 
+    left: 20px;
+    background: rgba(10, 20, 15, 0.85); 
+    color: #fff;
+    padding: 20px; 
+    border-radius: 12px; 
+    border: 1px solid #4caf50;
+    min-width: 250px; 
+    pointer-events: none; 
+    display: none; 
+    z-index: 5;
+}
+
+.hud-row { 
+    display: flex; 
+    justify-content: space-between; 
+    margin: 6px 0; 
+    font-size: 14px; 
+}
+
+.val { 
+    font-weight: bold; 
+    color: #ffb74d; 
+}
+
+/* Container de Controles */
+#controls {
+    position: absolute; 
+    bottom: 30px; 
+    left: 50%; 
+    transform: translateX(-50%);
+    display: none; 
+    gap: 10px; 
+    z-index: 5;
+}
+
+/* Estilização Geral dos Botões */
+.btn {
+    padding: 12px 20px; 
+    font-size: 14px; 
+    font-weight: bold; 
+    border: none;
+    border-radius: 8px; 
+    color: #fff; 
+    background: #2e7d32; 
+    cursor: pointer;
+    transition: background 0.2s ease;
+}
+
+.btn:hover { background: #388e3c; }
+.btn-blue { background: #1565c0; }
+.btn-blue:hover { background: #1e88e5; }
+.btn-orange { background: #e65100; }
+.btn-orange:hover { background: #f57c00; }
+.btn-red { background: #c62828; }
+.btn-red:hover { background: #e53935; }
+
+/* Botão de Sair da Primeira Pessoa */
+#exit-fp {
+    position: absolute; 
+    top: 20px; 
+    right: 20px; 
+    display: none; 
+    z-index: 8;
+    padding: 12px 24px; 
+    background: #c62828; 
+    color: #fff; 
+    border: none;
+    border-radius: 6px; 
+    font-weight: bold; 
+    cursor: pointer;
+}
+
+/* Classe utilitária para esconder elementos */
+.hide { 
+    display: none !important; 
+}

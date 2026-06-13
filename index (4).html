@@ -1,0 +1,720 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Eco-Vila Sim - Agrinho 2026</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body, html { overflow: hidden; font-family: sans-serif; background: #0a0f1d; }
+        #canvas-container { width: 100vw; height: 100vh; display: block; }
+        
+        .screen {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(135deg, #0e1e12 0%, #050a14 100%);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            color: #fff; z-index: 10; text-align: center;
+        }
+        .screen h1 { font-size: 2.5rem; margin-bottom: 15px; color: #81c784; }
+        .screen p { max-width: 500px; margin-bottom: 25px; color: #b0bec5; line-height: 1.5; }
+        
+        #hud {
+            position: absolute; top: 20px; left: 20px;
+            background: rgba(10, 20, 15, 0.85); color: #fff;
+            padding: 20px; border-radius: 12px; border: 1px solid #4caf50;
+            min-width: 250px; pointer-events: none; display: none; z-index: 5;
+        }
+        .hud-row { display: flex; justify-content: space-between; margin: 6px 0; font-size: 14px; }
+        .val { font-weight: bold; color: #ffb74d; }
+        
+        #controls {
+            position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%);
+            display: none; gap: 10px; z-index: 5;
+        }
+        .btn {
+            padding: 12px 20px; font-size: 14px; font-weight: bold; border: none;
+            border-radius: 8px; color: #fff; background: #2e7d32; cursor: pointer;
+        }
+        .btn:hover { background: #388e3c; }
+        .btn-blue { background: #1565c0; }
+        .btn-blue:hover { background: #1e88e5; }
+        .btn-orange { background: #e65100; }
+        .btn-orange:hover { background: #f57c00; }
+        .btn-red { background: #c62828; }
+        .btn-red:hover { background: #e53935; }
+        
+        #exit-fp {
+            position: absolute; top: 20px; right: 20px; display: none; z-index: 8;
+            padding: 12px 24px; background: #c62828; color: #fff; border: none;
+            border-radius: 6px; font-weight: bold; cursor: pointer;
+        }
+        .hide { display: none !important; }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+</head>
+<body>
+
+    <div id="start-screen" class="screen">
+        <h1>Eco-Vila Sim</h1>
+        <p>Gerencie os recursos da fazenda por 5 dias. Monitore o solo, controle os aldeões diretamente e cuide dos animais para garantir a sobrevivência da vila.</p>
+        <button class="btn" onclick="startGame()">Iniciar Simulação</button>
+    </div>
+
+    <div id="end-screen" class="screen hide">
+        <h1 id="end-title">Fim de Jogo</h1>
+        <p id="end-desc"></p>
+        <button class="btn" onclick="location.reload()">Jogar Novamente</button>
+    </div>
+
+    <button id="exit-fp" onclick="exitFirstPerson()">Sair da Visão do Aldeão</button>
+
+    <div id="hud">
+        <h4 style="color: #81c784; margin-bottom: 10px;">DADOS DA FAZENDA</h4>
+        <div class="hud-row"><span>Tempo:</span><span id="txt-day" class="val">Dia 1 / 5</span></div>
+        <div class="hud-row"><span>Clima:</span><span id="txt-weather" class="val">--</span></div>
+        <div class="hud-row"><span>Saúde das Plantas:</span><span id="txt-health" class="val">--</span></div>
+        <div class="hud-row"><span>Umidade do Solo:</span><span id="txt-moisture" class="val">--</span></div>
+        <div class="hud-row"><span>Total Plantado:</span><span id="txt-crops" class="val">--</span></div>
+    </div>
+
+    <div id="controls">
+        <button class="btn btn-blue" onclick="irrigateField()">Irrigar Solo</button>
+        <button class="btn" onclick="expandCrops()">Expandir Lavoura</button>
+        <button class="btn btn-orange" onclick="enterFirstPerson()">Controlar Aldeão</button>
+        <button class="btn btn-red" onclick="nextDay()">Avançar Dia</button>
+    </div>
+
+    <div id="canvas-container"></div>
+
+    <script>
+        // Game State
+        let currentDay = 1;
+        let cropHealth = 60;
+        let soilMoisture = 50;
+        let totalCrops = 120;
+        let isRunning = false;
+        let isGameOver = false;
+        let isRaining = false;
+        let isFirstPerson = false;
+        let dayProgress = 0.1;
+        let fpRotation = 0;
+
+        // Core Objects
+        let scene, camera, renderer, sunLight, sunMesh, skyColor;
+        let windmillBlades, rainSystem;
+        
+        // Entity Arrays
+        const npcs = [];
+        const animals = [];
+        const birds = [];
+
+        // Groups
+        const cropGroup = new THREE.Group();
+        const animalGroup = new THREE.Group();
+
+        // Static Positions
+        const wellPos = new THREE.Vector3(0, 0, 5);
+        const windmillPos = new THREE.Vector3(0, 0, -35);
+        const housePositions = [
+            new THREE.Vector3(-14, 0, -8),
+            new THREE.Vector3(-14, 0, 15),
+            new THREE.Vector3(14, 0, -8),
+            new THREE.Vector3(14, 0, 15)
+        ];
+
+        // Physics Barriers
+        const colliders = [
+            { x: wellPos.x, z: wellPos.z, r: 2.2 },
+            { x: windmillPos.x, z: windmillPos.z, r: 4.0 },
+            { x: housePositions[0].x, z: housePositions[0].z, r: 5.5 },
+            { x: housePositions[1].x, z: housePositions[1].z, r: 5.5 },
+            { x: housePositions[2].x, z: housePositions[2].z, r: 5.5 },
+            { x: housePositions[3].x, z: housePositions[3].z, r: 5.5 }
+        ];
+
+        // Input Mapping
+        const input = { w: false, a: false, s: false, d: false };
+        window.addEventListener('keydown', (e) => { const k = e.key.toLowerCase(); if(k in input) input[k] = true; });
+        window.addEventListener('keyup', (e) => { const k = e.key.toLowerCase(); if(k in input) input[k] = false; });
+
+        // Procedural Textures
+        function generateNoiseTex(color1, color2, size = 256) {
+            const canvas = document.createElement('canvas');
+            canvas.width = size; canvas.height = size;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = color1; ctx.fillRect(0, 0, size, size);
+            for(let i = 0; i < 2000; i++) {
+                ctx.fillStyle = color2;
+                ctx.fillRect(Math.random() * size, Math.random() * size, 2, 2);
+            }
+            const tex = new THREE.CanvasTexture(canvas);
+            tex.wrapS = THREE.RepeatWrapping; tex.wrapT = THREE.RepeatWrapping;
+            return tex;
+        }
+
+        const texGrass = generateNoiseTex('#4caf50', '#388e3c', 512); texGrass.repeat.set(15, 15);
+        const texPath = generateNoiseTex('#a1887f', '#795548', 256); texPath.repeat.set(1, 10);
+        const texWood = generateNoiseTex('#5d4037', '#4e342e', 128);
+        const texWall = generateNoiseTex('#f5f5f5', '#e0e0e0', 256);
+
+        // Init Setup
+        function initScene() {
+            const container = document.getElementById('canvas-container');
+            scene = new THREE.Scene();
+            skyColor = new THREE.Color(0x81d4fa);
+            scene.background = skyColor;
+            scene.fog = new THREE.FogExp2(0x81d4fa, 0.005);
+
+            camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(0, 35, 70);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            container.appendChild(renderer.domElement);
+
+            scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+
+            sunLight = new THREE.DirectionalLight(0xfffde7, 1.1);
+            sunLight.castShadow = true;
+            sunLight.shadow.mapSize.width = 2048; sunLight.shadow.mapSize.height = 2048;
+            const shadowSize = 80;
+            sunLight.shadow.camera.left = -shadowSize; sunLight.shadow.camera.right = shadowSize;
+            sunLight.shadow.camera.top = shadowSize; sunLight.shadow.camera.bottom = -shadowSize;
+            scene.add(sunLight);
+
+            sunMesh = new THREE.Mesh(new THREE.SphereGeometry(3.5, 32, 32), new THREE.MeshBasicMaterial({ color: 0xffeb3b }));
+            scene.add(sunMesh);
+
+            const floor = new THREE.Mesh(new THREE.PlaneGeometry(250, 250), new THREE.MeshStandardMaterial({ map: texGrass, roughness: 1 }));
+            floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true;
+            scene.add(floor);
+
+            buildEnvironment();
+        }
+
+        function buildEnvironment() {
+            const roadMat = new THREE.MeshStandardMaterial({ map: texPath, roughness: 0.9 });
+            const mainRoad = new THREE.Mesh(new THREE.PlaneGeometry(7.5, 160), roadMat);
+            mainRoad.rotation.x = -Math.PI / 2; mainRoad.position.set(0, 0.02, 0); mainRoad.receiveShadow = true;
+            scene.add(mainRoad);
+
+            const crossRoad = new THREE.Mesh(new THREE.PlaneGeometry(100, 6.5), roadMat);
+            crossRoad.rotation.x = -Math.PI / 2; crossRoad.position.set(0, 0.02, 5); crossRoad.receiveShadow = true;
+            scene.add(crossRoad);
+
+            buildWindmill();
+            buildWell();
+            
+            // Posicionamento e rotação das casas viradas para as estradas
+            buildHouse(housePositions[0].x, housePositions[0].z, 0xb0bec5, Math.PI / 2);
+            buildHouse(housePositions[1].x, housePositions[1].z, 0xffa726, Math.PI / 2);
+            buildHouse(housePositions[2].x, housePositions[2].z, 0x90caf9, -Math.PI / 2);
+            buildHouse(housePositions[3].x, housePositions[3].z, 0xa5d6a7, -Math.PI / 2);
+
+            const mtMat = new THREE.MeshStandardMaterial({ color: 0x455a64, roughness: 1.0, flatShading: true });
+            const m1 = new THREE.Mesh(new THREE.ConeGeometry(45, 35, 4), mtMat); m1.position.set(-75, 5, -85); scene.add(m1);
+            const m2 = new THREE.Mesh(new THREE.ConeGeometry(55, 40, 5), mtMat); m2.position.set(0, 8, -100); scene.add(m2);
+
+            for(let i = 0; i < 25; i++) {
+                let tx = Math.random() > 0.5 ? Math.random() * 30 + 45 : -Math.random() * 30 - 45;
+                let tz = Math.random() * 120 - 60;
+                buildTree(tx, tz);
+            }
+
+            scene.add(cropGroup);
+            scene.add(animalGroup);
+            
+            populateCrops(totalCrops);
+            createFauna();
+            initWeatherFX();
+        }
+
+        function buildWell() {
+            const well = new THREE.Group();
+            well.position.copy(wellPos);
+            
+            const base = new THREE.Mesh(new THREE.CylinderGeometry(1.5, 1.5, 1.1, 16), new THREE.MeshStandardMaterial({ color: 0x78909c, flatShading: true }));
+            base.position.y = 0.55; base.castShadow = true; base.receiveShadow = true; well.add(base);
+            
+            const water = new THREE.Mesh(new THREE.CylinderGeometry(1.35, 1.35, 0.1, 16), new THREE.MeshStandardMaterial({ color: 0x0288d1, roughness: 0.2 }));
+            water.position.y = 0.95; well.add(water);
+
+            const postMat = new THREE.MeshStandardMaterial({ map: texWood });
+            const p1 = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 2.6), postMat); p1.position.set(-1.1, 1.4, 0); well.add(p1);
+            const p2 = p1.clone(); p2.position.x = 1.1; well.add(p2);
+
+            const roof = new THREE.Mesh(new THREE.ConeGeometry(2.0, 1.0, 4), new THREE.MeshStandardMaterial({ color: 0xb71c1c }));
+            roof.position.y = 3.1; roof.rotation.y = Math.PI / 4; roof.castShadow = true; well.add(roof);
+            
+            scene.add(well);
+        }
+
+        function buildHouse(x, z, tint, rotY) {
+            const house = new THREE.Group();
+            house.position.set(x, 0, z);
+            house.rotation.y = rotY; // Rotaciona o grupo inteiro de forma uniforme
+            
+            // Base da estrutura
+            const body = new THREE.Mesh(new THREE.BoxGeometry(8, 6, 7), new THREE.MeshStandardMaterial({ map: texWall, color: tint }));
+            body.position.y = 3; body.castShadow = true; body.receiveShadow = true; 
+            house.add(body);
+            
+            // Telhado piramidal (Cone com 4 faces) encaixado por cima
+            const roof = new THREE.Mesh(new THREE.ConeGeometry(6.2, 4.0, 4), new THREE.MeshStandardMaterial({ color: 0xb71c1c }));
+            roof.position.y = 8; 
+            roof.rotation.y = Math.PI / 4; // Ajuste interno padrão para alinhar os cantos do cone ao cubo
+            roof.castShadow = true;
+            house.add(roof);
+            
+            // Porta estruturada em 3D (Cubo fino inserido na parede frontal)
+            const door = new THREE.Mesh(new THREE.BoxGeometry(1.6, 3.2, 0.25), new THREE.MeshStandardMaterial({ map: texWood }));
+            door.position.set(0, 1.6, 3.5); 
+            house.add(door);
+
+            // Janelas estruturadas em 3D (Cubos finos de vidro com moldura escura)
+            const windowMat = new THREE.MeshStandardMaterial({ color: 0x90caf9, roughness: 0.1 });
+            
+            const leftWindow = new THREE.Mesh(new THREE.BoxGeometry(1.2, 1.2, 0.2), windowMat);
+            leftWindow.position.set(-2.2, 3.5, 3.5);
+            house.add(leftWindow);
+
+            const rightWindow = leftWindow.clone();
+            rightWindow.position.x = 2.2;
+            house.add(rightWindow);
+            
+            scene.add(house);
+        }
+
+        function buildWindmill() {
+            const mill = new THREE.Group();
+            mill.position.copy(windmillPos);
+            
+            const tower = new THREE.Mesh(new THREE.CylinderGeometry(2.2, 4.2, 22, 16), new THREE.MeshStandardMaterial({ map: texWall }));
+            tower.position.y = 11; tower.castShadow = true; tower.receiveShadow = true; mill.add(tower);
+            
+            const cap = new THREE.Mesh(new THREE.ConeGeometry(2.8, 3.5, 16), new THREE.MeshStandardMaterial({ color: 0xb71c1c }));
+            cap.position.y = 23.75; cap.castShadow = true; mill.add(cap);
+
+            windmillBlades = new THREE.Group(); windmillBlades.position.set(0, 18.5, 2.8);
+            for(let i = 0; i < 4; i++) {
+                const blade = new THREE.Mesh(new THREE.BoxGeometry(0.5, 11, 0.1), new THREE.MeshStandardMaterial({ map: texWood }));
+                blade.position.y = 5.5; 
+                const pivot = new THREE.Group(); pivot.rotation.z = (Math.PI / 2) * i; pivot.add(blade);
+                windmillBlades.add(pivot);
+            }
+            mill.add(windmillBlades);
+            scene.add(mill);
+        }
+
+        function buildTree(x, z) {
+            const tree = new THREE.Group(); tree.position.set(x, 0, z);
+            const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.4, 4), new THREE.MeshStandardMaterial({ map: texWood }));
+            trunk.position.y = 2; trunk.castShadow = true; tree.add(trunk);
+            const top = new THREE.Mesh(new THREE.SphereGeometry(2.2, 8, 8), new THREE.MeshStandardMaterial({ color: 0x1b5e20 }));
+            top.position.y = 4.5; top.castShadow = true; tree.add(top);
+            scene.add(tree);
+        }
+
+        function createFauna() {
+            const pen = new THREE.Group(); pen.position.set(38, 0, 20);
+            const floor = new THREE.Mesh(new THREE.BoxGeometry(26, 0.1, 26), new THREE.MeshStandardMaterial({ color: 0x64dd17, roughness: 1.0 }));
+            floor.position.y = 0.01; floor.receiveShadow = true; pen.add(floor);
+
+            const fMat = new THREE.MeshStandardMaterial({ map: texWood });
+            const f1 = new THREE.Mesh(new THREE.BoxGeometry(26, 1.2, 0.25), fMat); f1.position.set(0, 0.6, -13); pen.add(f1);
+            const f2 = new THREE.Mesh(new THREE.BoxGeometry(26, 1.2, 0.25), fMat); f2.position.set(0, 0.6, 13); pen.add(f2);
+            const f3 = new THREE.Mesh(new THREE.BoxGeometry(0.25, 1.2, 26), fMat); f3.position.set(-13, 0.6, 0); pen.add(f3);
+            const f4 = new THREE.Mesh(new THREE.BoxGeometry(0.25, 1.2, 26), fMat); f4.position.set(13, 0.6, 0); pen.add(f4);
+
+            const barn = new THREE.Group(); barn.position.set(0, 0, -6);
+            const bBase = new THREE.Mesh(new THREE.BoxGeometry(10, 6, 8), new THREE.MeshStandardMaterial({ color: 0xbf360c }));
+            bBase.position.y = 3; bBase.castShadow = true; barn.add(bBase);
+            const bRoof = new THREE.Mesh(new THREE.ConeGeometry(7, 4, 4), new THREE.MeshStandardMaterial({ color: 0x37474f }));
+            bRoof.position.y = 7; bRoof.rotation.y = Math.PI / 4; barn.add(bRoof);
+            pen.add(barn);
+
+            for(let i = 0; i < 3; i++) {
+                const cow = new THREE.Group(); cow.position.set(Math.random() * 12 - 6, 0, Math.random() * 10 + 1);
+                const body = new THREE.Mesh(new THREE.BoxGeometry(1.8, 1.2, 1.2), new THREE.MeshStandardMaterial({ color: 0xffffff }));
+                body.position.y = 0.6; body.castShadow = true; cow.add(body);
+                const pattern = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.6, 1.22), new THREE.MeshStandardMaterial({ color: 0x111111 }));
+                pattern.position.set(0.2, 0.6, 0); cow.add(pattern);
+                const head = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.7, 0.7), new THREE.MeshStandardMaterial({ color: 0xffffff }));
+                head.position.set(1.1, 1.1, 0); cow.add(head);
+                
+                pen.add(cow);
+                animals.push({ obj: cow, tx: cow.position.x, tz: cow.position.z, idleTime: 0 });
+            }
+            animalGroup.add(pen);
+
+            for(let i = 0; i < 6; i++) {
+                const bird = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.03, 0.25), new THREE.MeshBasicMaterial({ color: 0x212121 }));
+                bird.position.set(Math.random() * 60 - 30, 22 + Math.random() * 3, Math.random() * 40 - 20);
+                scene.add(bird);
+                birds.push({ obj: bird, rad: Math.random() * Math.PI * 2, velocity: 0.015 });
+            }
+
+            const colors = [0xd32f2f, 0xfbc02d, 0x1976d2, 0x7b1fa2];
+            for(let i = 0; i < 4; i++) {
+                const npc = new THREE.Group(); npc.position.set(-4, 0, 2 + i * 3);
+                const body = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.35, 1.8), new THREE.MeshStandardMaterial({ color: colors[i] }));
+                body.position.y = 0.9; body.castShadow = true; npc.add(body);
+                const head = new THREE.Mesh(new THREE.SphereGeometry(0.35, 16, 16), new THREE.MeshStandardMaterial({ color: 0xffcc80 }));
+                head.position.y = 2.1; npc.add(head);
+                scene.add(npc);
+                npcs.push({ obj: npc, tx: npc.position.x, tz: npc.position.z, idleTime: 0, mode: 'wander', targetHouse: i });
+            }
+        }
+
+        function populateCrops(count) {
+            while(cropGroup.children.length > 0) { cropGroup.remove(cropGroup.children[0]); }
+            let spawned = 0;
+            let growth = (currentDay / 5) * (0.3 + (cropHealth / 100));
+
+            for (let z = -50; z < 55; z += 3.5) {
+                for (let x = -55; x < 55; x += 3.2) {
+                    if (spawned >= count) break;
+                    
+                    if (Math.abs(x) < 7.0) continue;
+                    if (Math.abs(z - 5) < 6.0) continue;
+                    if (Math.abs(x) < 24 && Math.abs(z) < 30) continue;
+                    if (x > 20 && z > -2) continue;
+
+                    const stalk = new THREE.Group();
+                    stalk.position.set(x + Math.random() * 0.1, 0, z + Math.random() * 0.1);
+
+                    const base = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.09, 2.0), new THREE.MeshStandardMaterial({ color: 0x558b2f }));
+                    base.position.y = 1.0; base.castShadow = true; stalk.add(base);
+
+                    if(currentDay >= 3) {
+                        const fruit = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.4, 6), new THREE.MeshStandardMaterial({ color: 0xffeb3b }));
+                        fruit.position.set(0, 1.3, 0.08); stalk.add(fruit);
+                    }
+
+                    stalk.scale.set(1, Math.max(0.15, growth), 1);
+                    cropGroup.add(stalk); spawned++;
+                }
+            }
+        }
+
+        function initWeatherFX() {
+            const geo = new THREE.BufferGeometry();
+            const totalParticles = 1000;
+            const coords = new Float32Array(totalParticles * 3);
+            for(let i = 0; i < totalParticles * 3; i += 3) {
+                coords[i] = Math.random() * 140 - 70;
+                coords[i+1] = Math.random() * 50;
+                coords[i+2] = Math.random() * 140 - 70;
+            }
+            geo.setAttribute('position', new THREE.BufferAttribute(coords, 3));
+            rainSystem = new THREE.Points(geo, new THREE.PointsMaterial({ size: 0.15, color: 0x90caf9, transparent: true, opacity: 0.0 }));
+            scene.add(rainSystem);
+        }
+
+        function checkBoundaries(nx, nz) {
+            for(let i = 0; i < colliders.length; i++) {
+                let c = colliders[i];
+                let dist = Math.sqrt((nx - c.x)**2 + (nz - c.z)**2);
+                if(dist < c.r) return true;
+            }
+            return false;
+        }
+
+        function updateAI() {
+            if (isGameOver) return;
+            
+            const isNightTime = (sunMesh.position.y <= 6);
+            const startNode = isFirstPerson ? 1 : 0; // Se o jogador assumiu o NPC 0, ignora ele no script de IA
+
+            for(let i = startNode; i < npcs.length; i++) {
+                let npc = npcs[i];
+                
+                if (isNightTime) {
+                    npc.mode = 'homebound';
+                } else if (npc.mode === 'homebound') {
+                    npc.mode = 'wander';
+                    npc.obj.visible = true;
+                }
+
+                const dx = npc.tx - npc.obj.position.x;
+                const dz = npc.tz - npc.obj.position.z;
+                const d = Math.sqrt(dx*dx + dz*dz);
+                
+                if (npc.mode === 'homebound') {
+                    let target = housePositions[npc.targetHouse];
+                    const hx = target.x - npc.obj.position.x;
+                    const hz = target.z - npc.obj.position.z;
+                    const distHome = Math.sqrt(hx*hx + hz*hz);
+                    
+                    if (distHome > 1.5) {
+                        npc.obj.position.x += (hx / distHome) * 0.14;
+                        npc.obj.position.z += (hz / distHome) * 0.14;
+                        npc.obj.rotation.y = Math.atan2(hx, hz);
+                    } else {
+                        npc.obj.visible = false;
+                    }
+                } else if (npc.mode === 'wander') {
+                    npc.idleTime -= 0.016;
+                    if (d > 0.4) {
+                        let stepX = (dx / d) * 0.06;
+                        let stepZ = (dz / d) * 0.06;
+                        let nextX = npc.obj.position.x + stepX;
+                        let nextZ = npc.obj.position.z + stepZ;
+
+                        // Adicionada checagem mecânica de barreira para a movimentação comum dos NPCs
+                        if(!checkBoundaries(nextX, nextZ)) {
+                            npc.obj.position.x = nextX;
+                            npc.obj.position.z = nextZ;
+                        } else {
+                            // Se colidir, cancela o trajeto atual e força uma nova rota aleatória
+                            npc.idleTime = 0;
+                        }
+                        npc.obj.rotation.y = Math.atan2(dx, dz);
+                    } else if (npc.idleTime <= 0) {
+                        npc.tx = Math.random() * 14 - 7;
+                        npc.tz = Math.random() * 24 - 4;
+                        npc.idleTime = 3 + Math.random() * 3;
+                    }
+                } else if (npc.mode === 'fetchWater') {
+                    const wx = wellPos.x - npc.obj.position.x;
+                    const wz = wellPos.z - npc.obj.position.z;
+                    const distWell = Math.sqrt(wx*wx + wz*wz);
+                    if(distWell > 1.2) {
+                        npc.obj.position.x += (wx / distWell) * 0.12;
+                        npc.obj.position.z += (wz / distWell) * 0.12;
+                        npc.obj.rotation.y = Math.atan2(wx, wz);
+                    } else {
+                        npc.mode = 'workField'; 
+                        npc.tx = Math.random() > 0.5 ? -25 : 25; npc.tz = Math.random() * 20;
+                    }
+                } else if (npc.mode === 'workField') {
+                    if (d > 0.6) {
+                        npc.obj.position.x += (dx / d) * 0.12;
+                        npc.obj.position.z += (dz / d) * 0.12;
+                        npc.obj.rotation.y = Math.atan2(dx, dz);
+                    } else {
+                        npc.mode = 'wander'; npc.tx = -5; npc.tz = 5;
+                    }
+                }
+            }
+
+            animals.forEach(ani => {
+                ani.idleTime -= 0.016;
+                const ax = ani.tx - ani.obj.position.x;
+                const az = ani.tz - ani.obj.position.z;
+                const ad = Math.sqrt(ax*ax + az*az);
+
+                if(ad > 0.3) {
+                    ani.obj.position.x += (ax / ad) * 0.02;
+                    ani.obj.position.z += (az / ad) * 0.02;
+                    ani.obj.rotation.y = Math.atan2(ax, az);
+                } else if (ani.idleTime <= 0) {
+                    ani.tx = Math.random() * 16 - 8;
+                    ani.tz = Math.random() * 10 + 1;
+                    ani.idleTime = 4 + Math.random() * 4;
+                }
+            });
+        }
+
+        function updateFirstPersonController() {
+            if (isGameOver) return;
+            let avatar = npcs[0].obj;
+            let speed = 0.16;
+            let rotSpeed = 0.04;
+
+            if (input.a) fpRotation += rotSpeed;
+            if (input.d) fpRotation -= rotSpeed;
+
+            let nextX = avatar.position.x;
+            let nextZ = avatar.position.z;
+
+            if (input.w) {
+                nextX -= Math.sin(fpRotation) * speed;
+                nextZ -= Math.cos(fpRotation) * speed;
+            }
+            if (input.s) {
+                nextX += Math.sin(fpRotation) * speed;
+                nextZ += Math.cos(fpRotation) * speed;
+            }
+
+            if(!checkBoundaries(nextX, nextZ)) {
+                avatar.position.x = nextX;
+                avatar.position.z = nextZ;
+            }
+
+            avatar.rotation.y = fpRotation;
+
+            camera.position.set(avatar.position.x, avatar.position.y + 2.1, avatar.position.z);
+            let targetVector = new THREE.Vector3(
+                avatar.position.x - Math.sin(fpRotation) * 10,
+                avatar.position.y + 2.1,
+                avatar.position.z - Math.cos(fpRotation) * 10
+            );
+            camera.lookAt(targetVector);
+        }
+
+        function enterFirstPerson() {
+            if(!isRunning || isGameOver) return;
+            isFirstPerson = true;
+            document.getElementById('controls').style.display = 'none';
+            document.getElementById('exit-fp').style.display = 'block';
+            npcs[0].obj.position.set(0, 0, 8);
+            fpRotation = 0;
+        }
+
+        function exitFirstPerson() {
+            isFirstPerson = false;
+            document.getElementById('exit-fp').style.display = 'none';
+            document.getElementById('controls').style.display = 'flex';
+            camera.position.set(0, 35, 70);
+        }
+
+        function irrigateField() {
+            if(!isRunning || isFirstPerson || isGameOver) return;
+            soilMoisture = Math.min(100, soilMoisture + 30);
+            cropHealth = Math.min(100, cropHealth + 8); 
+            updateHUD();
+            let picker = Math.floor(1 + Math.random() * 3);
+            if(npcs[picker]) npcs[picker].mode = 'fetchWater';
+        }
+
+        function expandCrops() {
+            if(!isRunning || isFirstPerson || isGameOver) return;
+            if(soilMoisture > 15) { 
+                totalCrops += 25; 
+                soilMoisture -= 12; 
+                populateCrops(totalCrops); 
+                updateHUD(); 
+            }
+        }
+
+        function nextDay() {
+            if(isFirstPerson || isGameOver) return;
+            currentDay++;
+            if(currentDay > 5) { handleEndGame(); return; }
+            if (!isRaining) {
+                soilMoisture = Math.max(10, soilMoisture - 35);
+                if(soilMoisture < 35) cropHealth = Math.max(5, cropHealth - 25);
+            }
+            dayProgress = 0.05; 
+            evaluateWeather(); 
+            populateCrops(totalCrops); 
+            updateHUD();
+        }
+
+        function evaluateWeather() {
+            if (currentDay === 2 || currentDay === 4) {
+                isRaining = true; 
+                document.getElementById('txt-weather').innerText = "Chuva Farta";
+                document.getElementById('txt-weather').style.color = "#4fc3f7"; 
+                rainSystem.material.opacity = 0.8;
+            } else {
+                isRaining = false; 
+                document.getElementById('txt-weather').innerText = "Sol Radiante";
+                document.getElementById('txt-weather').style.color = "#ffb74d"; 
+                rainSystem.material.opacity = 0.0;
+            }
+        }
+
+        function updateHUD() {
+            document.getElementById('txt-day').innerText = `Dia ${currentDay} / 5`;
+            document.getElementById('txt-health').innerText = `${Math.floor(cropHealth)}%`;
+            document.getElementById('txt-moisture').innerText = `${soilMoisture.toFixed(0)}%`;
+            document.getElementById('txt-crops').innerText = `${totalCrops} unidades`;
+        }
+
+        function startGame() {
+            document.getElementById('start-screen').classList.add('hide');
+            document.getElementById('hud').style.display = 'block';
+            document.getElementById('controls').style.display = 'flex';
+            isRunning = true; 
+            evaluateWeather();
+            updateHUD();
+        }
+
+        function handleEndGame() {
+            isRunning = false; isGameOver = true; isFirstPerson = false;
+            document.getElementById('exit-fp').style.display = 'none';
+            document.getElementById('hud').style.display = 'none';
+            document.getElementById('controls').style.display = 'none';
+            
+            const endScreen = document.getElementById('end-screen');
+            endScreen.classList.remove('hide');
+            
+            camera.position.set(0, 18, 45);
+            camera.lookAt(0, 4, 0);
+            
+            if(cropHealth >= 65 && totalCrops >= 145) {
+                document.getElementById('end-title').innerText = "Temporada de Sucesso! 🎉";
+                document.getElementById('end-desc').innerText = "A fazenda prosperou! Sua gestão manteve o solo fértil e os silos cheios.";
+            } else {
+                document.getElementById('end-title').innerText = "Colapso na Produção 💀";
+                document.getElementById('end-desc').innerText = "O milharal secou e a vila não acumulou reservas suficientes para o inverno.";
+            }
+        }
+
+        function runPipeline() {
+            requestAnimationFrame(runPipeline);
+
+            if (windmillBlades) windmillBlades.rotation.z += 0.015;
+
+            birds.forEach(b => {
+                b.rad += b.velocity; 
+                b.obj.position.x += Math.cos(b.rad) * 0.1; 
+                b.obj.position.z += Math.sin(b.rad) * 0.1;
+                b.obj.rotation.y = -b.rad + Math.PI / 2;
+            });
+
+            if(isRaining && rainSystem && !isGameOver) {
+                const positions = rainSystem.geometry.attributes.position.array;
+                for(let i = 1; i < positions.length; i += 3) { 
+                    positions[i] -= 0.5; 
+                    if(positions[i] < 0) positions[i] = 45; 
+                }
+                rainSystem.geometry.attributes.position.needsUpdate = true;
+                soilMoisture = Math.min(100, soilMoisture + 0.05); 
+                updateHUD();
+            }
+
+            if (isRunning && !isGameOver) {
+                if (isFirstPerson) {
+                    updateFirstPersonController();
+                } else {
+                    let orbit = Date.now() * 0.00003;
+                    camera.position.x = Math.sin(orbit) * 60;
+                    camera.position.z = Math.cos(orbit) * 60;
+                    camera.position.y = 28;
+                    camera.lookAt(0, 3, 0);
+                }
+                updateAI();
+            }
+
+            if(isRunning && dayProgress < Math.PI && !isGameOver) {
+                dayProgress += 0.0015;
+                sunMesh.position.x = -Math.cos(dayProgress) * 85;
+                sunMesh.position.y = Math.sin(dayProgress) * 45;
+                sunMesh.position.z = -55;
+                sunLight.position.copy(sunMesh.position);
+
+                let elevation = sunMesh.position.y;
+                if (elevation > 18) skyColor.setHex(isRaining ? 0x607d8b : 0x81d4fa);
+                else if (elevation > 2 && elevation <= 18) skyColor.setHex(isRaining ? 0x455a64 : 0xe65100);
+                else skyColor.setHex(0x0a1118);
+                scene.background = skyColor; scene.fog.color = skyColor;
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        initScene();
+        runPipeline();
+    </script>
+</body>
+</html>
